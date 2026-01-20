@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2026 Europe Unlimited | V7.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = { 
+            theme: { 
+                extend: { 
+                    fontFamily: { sans: ['Noto Sans TC', 'sans-serif'] }, 
+                    colors: { brand: { primary: '#3b82f6', dark: '#0f172a' } } 
+                } 
+            } 
+        }
+    </script>
+    <style>
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: #f8fafc; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        /* City Card Hover */
+        .city-card:hover { transform: translateY(-4px); box-shadow: 0 10px 20px -5px rgba(0,0,0,0.1); }
+        .voter-badge { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body class="text-slate-700 h-screen flex flex-col overflow-hidden relative">
+
+    <div id="loading-overlay" class="absolute inset-0 bg-white/90 z-[70] flex flex-col justify-center items-center backdrop-blur-sm">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p class="text-blue-600 font-bold animate-pulse" id="loading-text">正在連結歐洲資料庫...</p>
+    </div>
+
+    <nav class="bg-brand-dark text-white shadow-lg z-50 flex-shrink-0">
+        <div class="container mx-auto px-4 h-16 flex justify-between items-center">
+            <div class="font-bold text-xl tracking-wider flex items-center">
+                🇪🇺 EUROPE<span class="text-blue-400">UNLIMITED</span> 
+            </div>
+            <div class="hidden md:flex space-x-1">
+                <button onclick="switchTab('dashboard')" class="nav-btn px-4 py-2 rounded-lg bg-blue-600 font-bold transition hover:bg-slate-700">🗳️ 城市投票</button>
+                <button onclick="switchTab('itinerary')" class="nav-btn px-4 py-2 rounded-lg transition hover:bg-slate-700">📅 行程表</button>
+                <button onclick="switchTab('food')" class="nav-btn px-4 py-2 rounded-lg transition hover:bg-slate-700">📍 景點庫</button>
+                <button onclick="openAIModal()" class="nav-btn px-4 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 transition flex items-center border border-purple-400 ml-2">
+                    <span class="mr-2">🤖</span> AI 助理
+                </button>
+                <button onclick="syncData()" class="nav-btn px-3 py-2 rounded-lg hover:bg-slate-700 text-green-400 border border-green-400 ml-2">🔄 同步</button>
+            </div>
+            <button class="md:hidden text-2xl" onclick="toggleMenu()">☰</button>
+        </div>
+        <div id="mobile-menu" class="hidden md:hidden bg-slate-800 pb-2">
+            <button onclick="switchTab('dashboard')" class="block w-full text-left px-4 py-3 text-white border-b border-slate-700">🗳️ 城市投票</button>
+            <button onclick="switchTab('itinerary')" class="block w-full text-left px-4 py-3 text-white border-b border-slate-700">📅 行程表</button>
+            <button onclick="openAIModal()" class="block w-full text-left px-4 py-3 text-purple-300 font-bold">🤖 AI 助理</button>
+        </div>
+    </nav>
+
+    <main class="flex-grow overflow-y-auto p-4 md:p-6 bg-slate-50 relative">
+
+        <div id="dashboard" class="tab-content active max-w-6xl mx-auto">
+            
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-blue-100 mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 sticky top-0 z-10">
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">🙋‍♂️</span>
+                    <div>
+                        <h3 class="font-bold text-slate-800">你是誰？</h3>
+                        <p class="text-xs text-slate-500">輸入名字即可開始投票</p>
+                    </div>
+                </div>
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <input type="text" id="username-input" placeholder="例: Alex" class="w-full sm:w-48 px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none">
+                    <button onclick="openModal('addCityModal')" class="bg-slate-800 text-white px-4 py-2 rounded-lg hover:bg-slate-700 whitespace-nowrap">+ 新增城市</button>
+                </div>
+            </div>
+
+            <header class="mb-6">
+                <h2 class="text-3xl font-bold text-slate-800 mb-2">🔥 熱門目的地投票</h2>
+                <p class="text-slate-500">點擊卡片投票，決定我們的歐洲之旅要去哪裡！</p>
+            </header>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6" id="city-grid">
+                </div>
+        </div>
+
+        <div id="itinerary" class="tab-content max-w-4xl mx-auto">
+            <header class="mb-6 flex justify-between items-end">
+                <div>
+                    <h2 class="text-3xl font-bold text-slate-800">📅 行程規劃板</h2>
+                    <p class="text-sm text-slate-500">根據高票城市安排行程</p>
+                </div>
+                <button onclick="addDay()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 shadow flex items-center">
+                    <span class="mr-1 text-lg">+</span> 新增一天
+                </button>
+            </header>
+            <div id="itinerary-list" class="space-y-8 pb-20">
+                </div>
+        </div>
+
+        <div id="food" class="tab-content max-w-5xl mx-auto">
+             <header class="mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+                <h2 class="text-3xl font-bold text-slate-800">📍 景點與美食庫</h2>
+                <button onclick="openModal('spotModal')" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition font-bold">+ 手動新增</button>
+            </header>
+            <div class="flex gap-2 overflow-x-auto pb-2 mb-4">
+                <button onclick="renderFood('all')" class="bg-slate-800 text-white px-4 py-1.5 rounded-full text-sm">全部</button>
+                <button onclick="renderFood('spot')" class="bg-white border text-slate-600 px-4 py-1.5 rounded-full text-sm hover:bg-slate-100">📸 景點</button>
+                <button onclick="renderFood('food')" class="bg-white border text-slate-600 px-4 py-1.5 rounded-full text-sm hover:bg-slate-100">🍽️ 餐廳</button>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" id="food-grid"></div>
+        </div>
+
+    </main>
+
+    <div id="addCityModal" class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 hidden">
+        <div class="bg-white w-full max-w-sm p-6 rounded-2xl shadow-2xl m-4">
+            <h3 class="text-xl font-bold mb-4">🏙️ 新增城市</h3>
+            <input id="new-city-name" type="text" placeholder="城市名稱 (例: Berlin)" class="w-full p-3 border rounded-lg mb-4">
+            <input id="new-city-img" type="text" placeholder="圖片網址 (選填)" class="w-full p-3 border rounded-lg mb-4 text-sm">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal('addCityModal')" class="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg">取消</button>
+                <button onclick="addNewCity()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="aiModal" class="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 hidden backdrop-blur-sm">
+        <div class="bg-white w-full max-w-2xl h-[80vh] rounded-2xl shadow-2xl m-4 flex flex-col overflow-hidden">
+            <div class="bg-purple-700 text-white p-4 flex justify-between items-center">
+                <h3 class="font-bold text-lg">🤖 DeepSeek 旅遊助理</h3>
+                <button onclick="document.getElementById('aiModal').classList.add('hidden')" class="text-white text-2xl">✕</button>
+            </div>
+            <div id="apiKeySection" class="p-4 bg-yellow-50 border-b border-yellow-100 hidden">
+                <input type="password" id="deepseek-key" placeholder="API Key" class="w-full p-2 border rounded mb-2">
+                <button onclick="saveApiKey()" class="bg-slate-800 text-white px-3 py-1 rounded text-sm">Save Key</button>
+            </div>
+            <div id="ai-chat-area" class="flex-grow overflow-y-auto p-4 space-y-4 bg-slate-50"></div>
+            <div class="p-4 bg-white border-t border-slate-200 flex gap-2">
+                <input id="ai-input" type="text" placeholder="問問 AI (例: 推薦羅馬好吃的披薩)" class="flex-grow p-3 border rounded-xl" onkeypress="if(event.key === 'Enter') sendToAI()">
+                <button onclick="sendToAI()" class="bg-purple-600 text-white px-6 rounded-xl font-bold">發送</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="spotModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 hidden">
+        <div class="bg-white w-full max-w-md p-6 rounded-2xl shadow-2xl m-4">
+            <h3 class="text-xl font-bold mb-4">📍 新增景點</h3>
+            <div class="space-y-3">
+                <input id="spot-name" type="text" placeholder="名稱" class="w-full p-2 border rounded-lg">
+                <select id="spot-city-select" class="w-full p-2 border rounded-lg"></select> <select id="spot-type" class="w-full p-2 border rounded-lg">
+                    <option value="spot">📸 景點</option>
+                    <option value="food">🍽️ 餐廳</option>
+                </select>
+                <textarea id="spot-desc" placeholder="描述" class="w-full p-2 border rounded-lg"></textarea>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button onclick="closeModal('spotModal')" class="px-4 py-2 text-slate-500">取消</button>
+                <button onclick="createNewSpot()" class="px-4 py-2 bg-blue-600 text-white rounded-lg">新增</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 🔥 設定 Google Apps Script 網址
+        const GOOGLE_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbylTq94Jd6k1vl0L6F600GfW1D4gDQ0tlnMPZ-FaLRQQI1LfKpGjJujM_tkGFsbTwlYPA/exec';
+
+        // --- 1. DEFAULT DATA (Preloaded Cities) ---
+        const defaultCities = [
+            { id: 'c1', name: "London", country: "🇬🇧", votes: [], img: "https://images.unsplash.com/photo-1513635269975-59663e0ac1ad?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c2', name: "Paris", country: "🇫🇷", votes: [], img: "https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c3', name: "Rome", country: "🇮🇹", votes: [], img: "https://images.unsplash.com/photo-1552832230-c0197dd311b5?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c4', name: "Prague", country: "🇨🇿", votes: [], img: "https://images.unsplash.com/photo-1541849546-216549ea206b?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c5', name: "Vienna", country: "🇦🇹", votes: [], img: "https://images.unsplash.com/photo-1516550893923-42d28e5677af?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c6', name: "Budapest", country: "🇭🇺", votes: [], img: "https://images.unsplash.com/photo-1565426873118-a17ed65d7429?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c7', name: "Barcelona", country: "🇪🇸", votes: [], img: "https://images.unsplash.com/photo-1583422409516-2895a77efded?auto=format&fit=crop&w=600&q=80" },
+            { id: 'c8', name: "Amsterdam", country: "🇳🇱", votes: [], img: "https://images.unsplash.com/photo-1534351590666-13e3e96b5017?auto=format&fit=crop&w=600&q=80" },
+        ];
+
+        let cities = defaultCities;
+        let days = [ { id: 1, city: "London", date: "Day 1", events: [] } ]; // Sample
+        let spots = [];
+
+        // --- 2. CORE FUNCTIONS ---
+
+        function init() {
+            // Load username
+            const savedName = localStorage.getItem('eu_username');
+            if(savedName) document.getElementById('username-input').value = savedName;
+            
+            // Sync Data
+            syncData();
+
+            // Auto-save username
+            document.getElementById('username-input').addEventListener('input', (e) => {
+                localStorage.setItem('eu_username', e.target.value);
+            });
+        }
+
+        // --- DASHBOARD (CITIES) ---
+        function renderCities() {
+            const container = document.getElementById('city-grid');
+            // Sort by votes (descending)
+            const sortedCities = [...cities].sort((a, b) => b.votes.length - a.votes.length);
+
+            container.innerHTML = sortedCities.map(c => `
+                slate-100 flex flex-col transition-all cursor-pointer group" onclick="toggleVote('${c.id}')">
+                    <div class="h-32 bg-gray-200 relative overflow-hidden">
+                        <img src="${c.img || 'https://via.placeholder.com/400x200?text=' + c.name}" class="w-full h-full object-cover transition duration-700 group-hover:scale-110">
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent flex items-end p-3">
+                            <h3 class="text-white font-bold text-xl drop-shadow-md">${c.country} ${c.name}
+                        
+                    
+                    
+                        
+                            slate-400">VOTES
+                            ${c.votes.length} 票</span>
+                        </div>
+                        <div class="flex flex-wrap gap-1 min-h-[24px]">
+                            ${c.votes.map(v => `slate-100 text-slate-600 px-2 py-1 rounded border border-slate-200">${v}</span>`).join('')}
+                        
+                    
+                    slate-50 p-2 text-center text-xs text-blue-500 font-bold border-t border-slate-100 opacity-0 group-hover:opacity-100 transition">
+                        ${c.votes.includes(getName()) ? '取消投票 ✕' : '投我一票 ✋'}
+                    </div>
+                </div>
+            `).join('');
+
+            // Update City Select in Spot Modal
+            const select = document.getElementById('spot-city-select');
+            select.innerHTML = sortedCities.map(c => `<option value="${c.name}">${c.name}</option>`).join('');
+        }
+
+        function toggleVote(cityId) {
+            const name = getName();
+            if(!name) { alert("請先在上方輸入您的名字！"); document.getElementById('username-input').focus(); return; }
+
+            const city = cities.find(c => c.id === cityId);
+            if(city.votes.includes(name)) {
+                city.votes = city.votes.filter(v => v !== name); // Remove
+            } else {
+                city.votes.push(name); // Add
+            }
+            saveData();
+        }
+
+        function addNewCity() {
+            const name = document.getElementById('new-city-name').value;
+            const img = document.getElementById('new-city-img').value;
+            if(!name) return alert("請輸入城市名稱");
+
+            cities.push({
+                id: 'c' + Date.now(),
+                name: name,
+                country: "🌍", // Generic flag
+                votes: [getName() || 'Anonymous'], // Auto vote by creator
+                img: img || "https://images.unsplash.com/photo-1476514525535-07fb3b4ae5f1?auto=format&fit=crop&w=600&q=80"
+            });
+            saveData();
+            closeModal('addCityModal');
+        }
+
+        // --- ITINERARY ---
+        function renderItinerary() {
+            const container = document.getElementById('itinerary-list');
+            container.innerHTML = days.map((day, idx) => `
+                
+                    slate-50/95 backdrop-blur z-10 py-3 border-b border-slate-200 mb-4 flex justify-between items-center group">
+                        
+                             ${day.date}" onchange="updateDay(${day.id}, 'date', this.value)" class="bg-blue-100 text-blue-800 text-sm px-2 py-1 rounded w-20 font-bold text-center border-none focus:ring-1 focus:ring-blue-500">
+                             <select onchange="updateDay(${day.id}, 'city', this.value)" class="font-bold text-slate-800 bg-transparent border-none focus:ring-0 text-xl cursor-pointer">
+                                ${cities.map(c => `<option value="${c.name}" ${c.name === day.city ? 'selected' : ''}>${c.name}</option>`).join('')}
+                             </select>
+                        </div>
+                        <button onclick="deleteDay(${idx})" class="text-xs text-red-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition">刪除天
+                    
+                    
+                    slate-300 ml-4 pb-8 min-h-[50px]">
+                         ${day.events.length === 0 ? 'slate-400 text-sm italic py-4">無行程，請從景點庫加入' : ''}
+                         ${day.events.map((ev, ei) => `
+                            <div class="relative pl-8 group mb-4">
+                                <div class="absolute -left-[9px] top-4 w-4 h-4 rounded-full bg-white border-4 ${ev.type === 'food' ? 'border-orange-400' : 'border-blue-500'}">
+                                slate-100 shadow-sm flex justify-between items-center">
+                                    
+                                        slate-700">${ev.name}</div>
+                                        <a href="https://www.google.com/maps/search/Prague+Roast+Duck0{encodeURIComponent(ev.name + ' ' + day.city)}" target="_blank" class="text-xs text-blue-400 hover:underline">📍 Map</a>
+                                    </div>
+                                    <div class="flex gap-1 ml-2 opacity-0 group-hover:opacity-100 transition">
+                                        <button onclick="moveEvent(${day.id}, ${ei}, -1)" class="text-xs bg-slate-100 p-2 rounded">⬆️
+                                        ${day.id}, ${ei}, 1)" class="text-xs bg-slate-100 p-2 rounded">⬇️
+                                        ${day.id}, ${ei})" class="text-xs bg-red-50 text-red-400 p-2 rounded">✕</button>
+                                    </div>
+                                </div>
+                            </div>
+                         `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function addDay() {
+            // Default to the city with most votes
+            const topCity = [...cities].sort((a,b) => b.votes.length - a.votes.length)[0];
+            days.push({
+                id: Date.now(),
+                city: topCity ? topCity.name : "London",
+                date: `Day ${days.length + 1}`,
+                events: []
+            });
+            saveData();
+        }
+
+        function updateDay(id, field, val) {
+            const day = days.find(d => d.id === id);
+            day[field] = val;
+            saveData();
+        }
+
+        function deleteDay(idx) {
+            if(confirm("確定刪除這一天？")) {
+                days.splice(idx, 1);
+                saveData();
+            }
+        }
+
+        // --- SPOTS & FOOD ---
+        function renderFood(filter) {
+            const container = document.getElementById('food-grid');
+            const filtered = filter === 'all' ? spots : spots.filter(s => s.type === filter);
+            
+            // Build day options
+            const dayOptions = days.map(d => `<option value="${d.id}">${d.date} - ${d.city}</option>`).join('');
+
+            container.innerHTML = filtered.map(s => `
+                slate-100 flex flex-col">
+                    
+                        ${s.name}
+                        slate-100 px-2 py-1 rounded text-slate-500">${s.city}
+                    
+                    slate-500 mb-4 flex-grow truncate">${s.desc || ''}
+                    slate-100">
+                        ${s.id}" class="text-sm border rounded px-2 py-1 flex-grow bg-slate-50 w-full">
+                            ${dayOptions || '<option>請先新增行程天數</option>'}
+                        </select>
+                        <button onclick="addToItinerary(${s.id}, document.getElementById('sel-${s.id}').value)" class="bg-blue-600 text-white text-sm px-3 py-1 rounded font-bold hover:bg-blue-700 transition whitespace-nowrap">+ 加入</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // --- DATA SYNC ---
+        function syncData() {
+            showLoading(true);
+            fetch(GOOGLE_SCRIPT_URL)
+                .then(r => r.json())
+                .then(d => {
+                    if(d.trip_cities) cities = d.trip_cities;
+                    if(d.trip_days) days = d.trip_days;
+                    if(d.trip_spots) spots = d.trip_spots;
+                    
+                    renderCities();
+                    renderItinerary();
+                    renderFood('all');
+                    showLoading(false);
+                })
+                .catch(e => { console.error(e); showLoading(false); }); // First load might fail if empty, that's fine
+        }
+
+        function uploadData() {
+            const payload = JSON.stringify({ trip_cities: cities, trip_days: days, trip_spots: spots });
+            fetch(GOOGLE_SCRIPT_URL, { method: 'POST', body: payload });
+        }
+
+        function saveData() {
+            renderCities(); renderItinerary(); renderFood('all');
+            uploadData();
+        }
+
+        // --- UTILS ---
+        function getName() { return document.getElementById('username-input').value.trim(); }
+        function switchTab(id) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+            document.getElementById(id).classList.add('active');
+            // update nav styling omitted
+            if(window.innerWidth < 768) document.getElementById('mobile-menu').classList.add('hidden');
+        }
+        function toggleMenu() { document.getElementById('mobile-menu').classList.toggle('hidden'); }
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+        function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+        function showLoading(show) { document.getElementById('loading-overlay').classList.toggle('hidden', !show); }
+
+        // --- HELPERS FROM PREVIOUS VERSIONS (Keep them working) ---
+        function moveEvent(dayId, idx, dir) {
+            const d = days.find(x => x.id === dayId);
+            const n = idx + dir;
+            if (n < 0 || n >= d.events.length) return;
+            [d.events[idx], d.events[n]] = [d.events[n], d.events[idx]];
+            saveData();
+        }
+        function removeEvent(dayId, idx) {
+            const d = days.find(x => x.id === dayId);
+            d.events.splice(idx, 1);
+            saveData();
+        }
+        function addToItinerary(sid, did) {
+            if(!did || isNaN(did)) { alert("請先在「行程表」新增一天！"); return; }
+            const s = spots.find(x => x.id == sid);
+            const d = days.find(x => x.id == did);
+            d.events.push({ id: Date.now(), name: s.name, type: s.type });
+            saveData();
+            alert("已加入行程");
+        }
+        function createNewSpot() {
+            const name = document.getElementById('spot-name').value;
+            const city = document.getElementById('spot-city-select').value;
+            const type = document.getElementById('spot-type').value;
+            const desc = document.getElementById('spot-desc').value;
+            spots.unshift({ id: Date.now(), name, city, type, desc });
+            saveData();
+            closeModal('spotModal');
+        }
+
+        // --- AI LOGIC (Simplified for V7) ---
+        function openAIModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+            if(!localStorage.getItem('deepseek_key')) document.getElementById('apiKeySection').classList.remove('hidden');
+        }
+        function saveApiKey() { localStorage.setItem('deepseek_key', document.getElementById('deepseek-key').value); document.getElementById('apiKeySection').classList.add('hidden'); }
+        async function sendToAI() {
+            const msg = document.getElementById('ai-input').value;
+            const key = localStorage.getItem('deepseek_key');
+            if(!msg || !key) return alert("Key or Msg missing");
+            
+            document.getElementById('ai-chat-area').innerHTML += `<div class="text-right mb-2"><span class="bg-blue-100 p-2 rounded">${msg}</span></div>`;
+            document.getElementById('ai-input').value = '';
+
+            try {
+                const res = await fetch('https://api.deepseek.com/chat/completions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+                    body: JSON.stringify({
+                        model: "deepseek-chat",
+                        messages: [
+                            {role: "system", content: "你是有趣的導遊。推薦地點請回傳 JSON: {\"rec\":true, \"name\":\"...\", \"city\":\"...\", \"desc\":\"...\"}"},
+                            {role: "user", content: msg}
+                        ]
+                    })
+                });
+                const data = await res.json();
+                const text = data.choices[0].message.content;
+                
+                try {
+                     // Check for JSON
+                    const jsonMatch = text.match(/\{.*"rec":\s*true.*\}/s);
+                    if (jsonMatch) {
+                        const json = JSON.parse(jsonMatch[0]);
+                        document.getElementById('ai-chat-area').innerHTML += `
+                            <div class="mb-2 bg-purple-50 p-3 rounded border border-purple-200">
+                                🤖 推薦：<b>${json.name}</b> (${json.city})<br>${json.desc}<br>
+                                <button onclick='addSpotFromAI(${JSON.stringify(json)})' class="mt-2 bg-green-500 text-white px-2 py-1 rounded text-xs">＋ 新增此景點</button>
+                            </div>`;
+                    } else {
+                         document.getElementById('ai-chat-area').innerHTML += `<div class="mb-2 text-left"><span class="bg-white border p-2 rounded inline-block">${marked.parse(text)}</span></div>`;
+                    }
+                } catch(e) {
+                     document.getElementById('ai-chat-area').innerHTML += `<div class="mb-2 text-left"><span class="bg-white border p-2 rounded inline-block">${marked.parse(text)}</span></div>`;
+                }
+                
+            } catch(e) { alert("AI Error"); }
+        }
+        function addSpotFromAI(j) {
+            spots.unshift({ id: Date.now(), name: j.name, city: j.city, type: 'food', desc: j.desc });
+            saveData();
+            alert("已加入景點庫！");
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
